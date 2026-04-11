@@ -26,7 +26,7 @@ Target: `Qwen/Qwen3-8B-MLX-bf16` — Draft: `mlx_models/qwen3-8b-dflash`
 
 ---
 
-## 🚀 Install
+## Install
 
 ```bash
 pip install git+https://github.com/eauchs/mlx-dflash
@@ -82,7 +82,7 @@ print(tokenizer.decode(out[0].tolist()))
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 Target model (Qwen3-8B)
@@ -104,7 +104,7 @@ Target model (Qwen3-8B)
 
 ---
 
-## 💻 Apple Silicon Optimizations
+## Apple Silicon Optimizations
 
 - **Single `mx.eval()` per step** — posterior + predicted + both caches evaluated together to minimize CPU-GPU overhead.
 - **Intra-GPU verify_ids** — `mx.concatenate` instead of Python `.tolist()` to avoid unnecessary syncs.
@@ -113,7 +113,7 @@ Target model (Qwen3-8B)
 
 ---
 
-## 📝 Notes
+## Notes
 
 - Best results with bf16 target — quantized targets reduce acceptance rate significantly.
 - Acceptance rate scales with generation length.
@@ -121,7 +121,7 @@ Target model (Qwen3-8B)
 
 ---
 
-## 🎓 Citation
+## Citation
 
 ```bibtex
 @misc{chen2026dflash,
