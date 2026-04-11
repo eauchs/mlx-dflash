@@ -1,0 +1,8 @@
+.DS_Store
+.venv/
+mlx_models/
+__pycache__/
+*.pyc
+uv.lock
+test_*.py
+*.safetensors

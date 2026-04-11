@@ -10,18 +10,17 @@ No CUDA. No PyTorch. Pure MLX.
 
 ---
 
-## Results (M3 Max, 128GB, mlx-lm)
+## Results (M3 Max, 128GB)
 
-> Benchmarks pending — hardware available, running this week.
-> Community results welcome via Issues.
+Target: `Qwen/Qwen3-8B-MLX-bf16` — Draft: `z-lab/Qwen3-8B-DFlash-b16`
 
-Reference from No_Shift_4543 (M5 Max, 64GB):
+| Gen length | Baseline | DFlash | Speedup | Accept rate |
+|---|---|---|---|---|
+| 1024 tokens | 23.4 tok/s | 78.2 tok/s | **3.33×** | 8.75/16 |
+| 512 tokens | 23.5 tok/s | 29.2 tok/s | **1.24×** | 3.10/16 |
+| 256 tokens | 22.8 tok/s | 27.3 tok/s | **1.20×** | 2.67/16 |
 
-| Model | DFlash | Baseline | Speedup |
-|---|---|---|---|
-| Qwen3.5-9B bf16 | 85 tok/s | 26 tok/s | **3.3×** |
-| Qwen3.5-4B bf16 | 109 tok/s | 41 tok/s | **2.7×** |
-| Qwen3.5-27B 8bit | 35 tok/s | 14 tok/s | **2.5×** |
+Speedup scales with generation length — acceptance rate improves as context grows.
 
 ---
 
@@ -43,53 +42,39 @@ pip install -e .
 
 ## Quick Start
 
-### 1. Convert draft model weights
+### 1. Benchmark
 
 ```bash
-mlx-dflash-convert \
-  --hf-model z-lab/Qwen3-8B-DFlash-b16 \
-  --output   mlx_models/qwen3-8b-dflash \
-  --dtype    bfloat16
-```
-
-Available draft models from z-lab:
-- `z-lab/Qwen3-8B-DFlash-b16`
-- `z-lab/Qwen3-4B-DFlash-b16`
-- `z-lab/Qwen3.5-27B-DFlash-b16`
-- `z-lab/Qwen3.5-35B-A3B-DFlash` (MoE)
-
-### 2. Generate
-
-```bash
-mlx-dflash \
-  --target mlx-community/Qwen3-8B-4bit \
+python scripts/benchmark.py \
+  --target Qwen/Qwen3-8B-MLX-bf16 \
   --draft  mlx_models/qwen3-8b-dflash \
-  --prompt "Explain the Riemann hypothesis." \
-  --max-tokens 512
+  --gen-lengths 256 512 1024 \
+  --runs 1
 ```
 
-### 3. Python API
+### 2. Python API
 
 ```python
+import mlx_dflash.patch_qwen3  # must import first
 from mlx_lm import load
 from mlx_dflash import DFlashDraftModel, DFlashEngine
-import mlx.core as mx
-import json, numpy as np
+from safetensors.torch import load_file
+import mlx.core as mx, json, glob, os
 
-# Load target
-target, tokenizer = load("mlx-community/Qwen3-8B-4bit")
+target, tokenizer = load("Qwen/Qwen3-8B-MLX-bf16")
 
-# Load draft
 with open("mlx_models/qwen3-8b-dflash/config.json") as f:
     config = json.load(f)
 draft = DFlashDraftModel(config)
-weights = {k: mx.array(v) for k, v in np.load("mlx_models/qwen3-8b-dflash/weights.npz").items()}
-draft.load_weights(list(weights.items()))
+files = glob.glob(os.path.expanduser(
+    "~/.cache/huggingface/hub/**/models--z-lab--Qwen3-8B-DFlash-b16/**/model.safetensors"),
+    recursive=True)
+draft.load_weights_from_original(load_file(files[0]))
+mx.eval(draft.parameters())
 
-# Generate
 engine = DFlashEngine(target, draft, tokenizer, block_size=16)
-ids = mx.array([tokenizer.encode("Hello, world!")], dtype=mx.int32)
-out = engine.generate(ids, max_new_tokens=256)
+ids = mx.array([tokenizer.encode("Explain quantum computing.")], dtype=mx.int32)
+out = engine.generate(ids, max_new_tokens=512)
 print(tokenizer.decode(out[0].tolist()))
 ```
 
@@ -98,53 +83,39 @@ print(tokenizer.decode(out[0].tolist()))
 ## Architecture
 
 ```
-Target model (e.g. Qwen3-8B)
+Target model (Qwen3-8B)
 │
 ├─ Prefill → KV cache + hidden states [L0..LN]
-│
-├─ Extract context features from layers [L2, L14, L27] → fc → (B, ctx, D)
+├─ Extract context features from layers [L1, L9, L17, L25, L33] → fc → (B, ctx, D)
 │
 └─ Decode loop:
-   ┌─ Draft model (2-4 lightweight layers, ~1B params)
-   │   input:  embed(draft_block)   ← noise tokens (current block + masks)
+   ┌─ Draft model (5 lightweight layers, ~1B params)
+   │   input:  embed([last_token] + [mask×15])
    │   cond:   context features from target hidden states
-   │   attn:   bidirectional over [context | draft_block]  (no causal mask)
-   │   output: hidden_states → target.lm_head → 16 logits
+   │   attn:   causal within draft block, full attention over context
+   │   output: hidden_states → target.lm_head → 15 logits
    │
-   ├─ Verify: target(draft_block) → 16 posterior logits
+   ├─ Verify: target([last_token] + draft_tokens) → 16 posterior logits
    │
    └─ Accept: greedy cumprod match → advance by (accept_len + 1)
 ```
 
-The drafter is conditioned on hidden states extracted from **multiple target layers**,
-not just the last one. This gives the tiny drafter access to the target's reasoning
-without needing to replicate its depth.
+---
+
+## Apple Silicon Optimizations
+
+- **Single `mx.eval()` per step** — posterior + predicted + both caches evaluated together
+- **Intra-GPU verify_ids** — `mx.concatenate` instead of Python `.tolist()` → no GPU→CPU sync
+- **Draft KV cache** — accumulated across steps, cropped on rejection
+- **bfloat16 throughout** — draft weights loaded in bf16 to match target hidden states exactly
 
 ---
 
-## Apple Silicon Notes
+## Notes
 
-Lessons from implementing this on unified memory hardware:
-
-**What works:**
-- Packed QKV projection (1 matmul + split instead of 3) → fewer kernel dispatches
-- Single `mx.eval()` per decode step (sync elision) → saves ~0.5ms at 80+ tok/s
-- `head_dim=256` compatible with MLX's `steel_attention` fast path
-
-**What doesn't:**
-- Custom Metal kernels for GEMV/SiLU/SDPA came back 0.5-0.8× slower than stock MLX steel GEMM
-- "Verify fewer tokens when confidence is low" doesn't help — weight loading dominates, not token count
-- On quantized targets (int4), the bf16 draft becomes the bottleneck (opposite of bf16 case)
-
----
-
-## Roadmap
-
-- [ ] Benchmarks on M3 Max 128GB (in progress)
-- [ ] LLaMA-3.1-8B support
-- [ ] Draft model quantization (fix bf16 draft bottleneck on int4 targets)
-- [ ] Long context stability (speedup degrades past 2K — KV cache growth)
-- [ ] MoE: Qwen3.5-35B-A3B
+- Best results with bf16 target — quantized targets reduce acceptance rate significantly
+- Acceptance rate scales with generation length
+- Draft model `z-lab/Qwen3-8B-DFlash-b16` must match target `Qwen/Qwen3-8B`
 
 ---
 
@@ -166,4 +137,4 @@ Lessons from implementing this on unified memory hardware:
 ## License
 
 MIT. Draft model weights from z-lab are MIT licensed.
-This repo is an independent MLX port — not affiliated with Z Lab.
+Independent MLX port — not affiliated with Z Lab.
