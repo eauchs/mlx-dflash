@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "mlx-dflash"
+version = "0.1.0"
+description = "DFlash block-diffusion speculative decoding for Apple Silicon (MLX)"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Théophile Lafargue", email = "theophile.lafargue@universite-paris-saclay.fr" }]
+requires-python = ">=3.10"
+keywords = ["mlx", "apple-silicon", "speculative-decoding", "llm", "inference"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+]
+dependencies = [
+    "mlx>=0.18.0",
+    "mlx-lm>=0.18.0",
+    "numpy>=1.26",
+    "safetensors>=0.4",
+    "huggingface-hub>=0.23",
+]
+
+[project.urls]
+Homepage = "https://github.com/eauchs/mlx-dflash"
+Paper    = "https://arxiv.org/abs/2602.06036"
+
+[project.scripts]
+mlx-dflash = "mlx_dflash.generate:main"
+mlx-dflash-convert = "mlx_dflash.convert:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["mlx_dflash*"]
