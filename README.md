@@ -16,7 +16,7 @@ Target: `Qwen/Qwen3-8B-MLX-bf16` — Draft: `z-lab/Qwen3-8B-DFlash-b16`
 
 | Gen length | Baseline | DFlash | Speedup | Accept rate |
 |---|---|---|---|---|
-| 1024 tokens | 23.4 tok/s | 78.2 tok/s | **3.33×** | 8.75/16 |
+| 1024 tokens | 23.4 tok/s | 79.6 tok/s | **3.41×** | 8.75/16 |
 | 512 tokens | 23.5 tok/s | 29.2 tok/s | **1.24×** | 3.10/16 |
 | 256 tokens | 22.8 tok/s | 27.3 tok/s | **1.20×** | 2.67/16 |
 
