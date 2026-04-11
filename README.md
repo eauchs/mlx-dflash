@@ -6,7 +6,7 @@ Native MLX implementation of [DFlash](https://arxiv.org/abs/2602.06036) speculat
 
 A small block-diffusion draft model generates 16 tokens **in parallel** (one forward pass). The target verifies them in one pass. Output is bit-for-bit identical to greedy baseline.
 
-No CUDA. No PyTorch. Pure MLX.
+No CUDA. Pure MLX inference. *(Weight conversion requires torch as a one-time step, not at runtime.)*
 
 ---
 
