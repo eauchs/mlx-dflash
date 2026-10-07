@@ -2,7 +2,7 @@
 
 Native MLX implementation of [DFlash](https://arxiv.org/abs/2602.06036) speculative decoding for Apple Silicon.
 
-> **DFlash**: Block Diffusion for Flash Speculative Decoding — Chen et al., 2026
+> **DFlash**: Block Diffusion for Flash Speculative Decoding (Chen et al., 2026)
 
 A small block-diffusion draft model generates 16 tokens **in parallel** (one forward pass). The target verifies them in one pass. Output is bit-for-bit identical to greedy baseline.
 
@@ -12,7 +12,7 @@ No CUDA. Pure MLX inference. *(Weight conversion requires torch as a one-time st
 
 ## 📊 Results (M3 Max, 128GB)
 
-Target: `Qwen/Qwen3-8B-MLX-bf16` — Draft: `mlx_models/qwen3-8b-dflash`
+Target: `Qwen/Qwen3-8B-MLX-bf16` · Draft: `mlx_models/qwen3-8b-dflash`
 
 | Prompt Type | Gen length | Baseline | DFlash | Speedup | Accept rate |
 |---|---|---|---|---|---|
@@ -22,7 +22,7 @@ Target: `Qwen/Qwen3-8B-MLX-bf16` — Draft: `mlx_models/qwen3-8b-dflash`
 ### Execution Proof
 ![DFlash Benchmark Proof](image.png)
 
-*Speedup scales with generation length — acceptance rate improves as context grows. Bit-for-bit parity with baseline confirmed.*
+*Speedup scales with generation length: acceptance rate improves as context grows. Bit-for-bit parity with baseline confirmed.*
 
 ---
 
@@ -106,16 +106,16 @@ Target model (Qwen3-8B)
 
 ## Apple Silicon Optimizations
 
-- **Single `mx.eval()` per step** — posterior + predicted + both caches evaluated together to minimize CPU-GPU overhead.
-- **Intra-GPU verify_ids** — `mx.concatenate` instead of Python `.tolist()` to avoid unnecessary syncs.
-- **Draft KV cache** — accumulated across steps and cropped precisely on rejection to maintain state.
-- **bfloat16 throughout** — draft weights loaded in bf16 to match target hidden states exactly and preserve precision.
+- **Single `mx.eval()` per step:** posterior + predicted + both caches evaluated together to minimize CPU-GPU overhead.
+- **Intra-GPU verify_ids:** `mx.concatenate` instead of Python `.tolist()` to avoid unnecessary syncs.
+- **Draft KV cache:** accumulated across steps and cropped precisely on rejection to maintain state.
+- **bfloat16 throughout:** draft weights loaded in bf16 to match target hidden states exactly and preserve precision.
 
 ---
 
 ## Notes
 
-- Best results with bf16 target — quantized targets reduce acceptance rate significantly.
+- Best results with bf16 target; quantized targets reduce acceptance rate significantly.
 - Acceptance rate scales with generation length.
 - Draft model `z-lab/Qwen3-8B-DFlash-b16` must match target `Qwen/Qwen3-8B`.
 
@@ -139,4 +139,4 @@ Target model (Qwen3-8B)
 ## 📄 License
 
 MIT. Draft model weights from z-lab are MIT licensed.
-Independent MLX port — not affiliated with Z Lab.
+Independent MLX port, not affiliated with Z Lab.
